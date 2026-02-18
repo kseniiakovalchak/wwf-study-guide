@@ -98,6 +98,17 @@ body{font-family:'Montserrat',-apple-system,sans-serif;background:#f5f5f0;min-he
 .footer p{font-size:12px;color:rgba(255,255,255,.45)}
 .footer a{color:rgba(255,255,255,.65)}
 
+/* Multi-select dropdown */
+.multi-select{position:relative}
+.multi-btn{width:100%;padding:9px 12px;border:1px solid #ccc;border-radius:4px;font-size:13px;font-family:'Montserrat',sans-serif;background:#fff;color:#333;cursor:pointer;text-align:left;display:flex;justify-content:space-between;align-items:center}
+.multi-btn:focus{border-color:#2d4a27;outline:none}
+.multi-btn .arrow{font-size:10px;color:#999}
+.multi-dropdown{display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ccc;border-top:none;border-radius:0 0 4px 4px;max-height:200px;overflow-y:auto;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.1)}
+.multi-dropdown.open{display:block}
+.multi-dropdown label{display:flex;align-items:center;gap:8px;padding:7px 12px;font-size:12px;cursor:pointer;transition:background .15s}
+.multi-dropdown label:hover{background:#f5f5f0}
+.multi-dropdown input[type="checkbox"]{accent-color:#2d4a27}
+
 @media(max-width:600px){
   .header-hero{padding:32px 20px 36px}
   .header-nav{padding:12px 20px}
@@ -135,10 +146,10 @@ body{font-family:'Montserrat',-apple-system,sans-serif;background:#f5f5f0;min-he
     <input type="text" id="search" class="search-input" placeholder="Search programs, universities, or topics...">
     <div class="filters-row">
       <div class="filter-group"><label class="filter-label">Level</label><select id="fLevel" class="filter-select"><option value="">All</option></select></div>
-      <div class="filter-group"><label class="filter-label">Discipline</label><select id="fDisc" class="filter-select"><option value="">All</option></select></div>
-      <div class="filter-group"><label class="filter-label">University</label><select id="fUni" class="filter-select"><option value="">All</option></select></div>
+      <div class="filter-group"><label class="filter-label">Discipline</label><div class="multi-select" id="msDisc"><button type="button" class="multi-btn" onclick="toggleDrop('msDisc')"><span id="msDiscLabel">All</span><span class="arrow">&#9660;</span></button><div class="multi-dropdown" id="msDiscDrop"></div></div></div>
       <div class="filter-group"><label class="filter-label">University Type</label><select id="fType" class="filter-select"><option value="">All</option></select></div>
-      <div class="filter-group"><label class="filter-label">Language</label><select id="fLang" class="filter-select"><option value="">All</option></select></div>
+      <div class="filter-group"><label class="filter-label">Region</label><select id="fRegion" class="filter-select"><option value="">All</option></select></div>
+      <div class="filter-group"><label class="filter-label">Language</label><div class="multi-select" id="msLang"><button type="button" class="multi-btn" onclick="toggleDrop('msLang')"><span id="msLangLabel">All</span><span class="arrow">&#9660;</span></button><div class="multi-dropdown" id="msLangDrop"></div></div></div>
     </div>
     <div class="filter-actions" id="fActions" style="display:none">
       <span id="fCount"></span>
@@ -189,7 +200,7 @@ function fetchData() {
       }
       console.log('Columns:', cols);
 
-      var iP = -1, iU = -1, iT = -1, iL = -1, iD = -1, iG = -1, iDe = -1, iPr = -1;
+      var iP = -1, iU = -1, iT = -1, iL = -1, iD = -1, iG = -1, iDe = -1, iPr = -1, iR = -1;
       for (var j = 0; j < cols.length; j++) {
         if (cols[j].indexOf('program') >= 0) iP = j;
         else if (cols[j].indexOf('university') >= 0 && cols[j].indexOf('type') >= 0) iT = j;
@@ -199,9 +210,10 @@ function fetchData() {
         else if (cols[j].indexOf('language') >= 0 || cols[j].indexOf('lang') >= 0) iG = j;
         else if (cols[j].indexOf('description') >= 0 || cols[j].indexOf('desc') >= 0) iDe = j;
         else if (cols[j].indexOf('practical') >= 0 || cols[j].indexOf('info') >= 0) iPr = j;
+        else if (cols[j].indexOf('region') >= 0) iR = j;
       }
 
-      if (iP === -1) { iP=0; iU=1; iT=2; iL=3; iD=4; iG=5; iDe=6; iPr=7; }
+      if (iP === -1) { iP=0; iU=1; iT=2; iL=3; iD=4; iG=5; iDe=6; iPr=7; iR=8; }
 
       DATA = [];
       var rows = response.table.rows;
@@ -209,7 +221,7 @@ function fetchData() {
         var r = rows[k];
         var prog = gv(r, iP);
         if (!prog || prog === 'Program') continue;
-        DATA.push({n:prog, u:gv(r,iU), t:gv(r,iT), l:gv(r,iL), d:gv(r,iD), g:gv(r,iG), desc:gv(r,iDe), p:gv(r,iPr)});
+        DATA.push({n:prog, u:gv(r,iU), t:gv(r,iT), l:gv(r,iL), d:gv(r,iD), g:gv(r,iG), desc:gv(r,iDe), p:gv(r,iPr), reg:gv(r,iR)});
       }
 
       if (DATA.length === 0) { showError('No programs found. Check column headers.'); return; }
@@ -253,24 +265,24 @@ function splitTrim(str) {
 }
 
 function populateFilters() {
-  var levels=[], discs=[], unis=[], types=[], langs=[];
+  var levels=[], discs=[], types=[], langs=[], regions=[];
   for (var i = 0; i < DATA.length; i++) {
     var x = DATA[i];
     levels.push(x.l);
-    unis.push(x.u);
     types.push(x.t);
+    if (x.reg) regions.push(x.reg);
     var dd = splitTrim(x.d); for (var j=0;j<dd.length;j++) discs.push(dd[j]);
     var ll = splitTrim(x.g); for (var j=0;j<ll.length;j++) langs.push(ll[j]);
   }
   fill('fLevel', uniq(levels));
-  fill('fDisc', uniq(discs));
-  fill('fUni', uniq(unis));
   fill('fType', uniq(types));
-  fill('fLang', uniq(langs));
+  fill('fRegion', uniq(regions));
+  fillMulti('msDiscDrop', uniq(discs), 'disc');
+  fillMulti('msLangDrop', uniq(langs), 'lang');
 }
 
 function getF() {
-  return { level:$('fLevel').value, disc:$('fDisc').value, uni:$('fUni').value, type:$('fType').value, lang:$('fLang').value, q:$('search').value.toLowerCase() };
+  return { level:$('fLevel').value, type:$('fType').value, region:$('fRegion').value, q:$('search').value.toLowerCase(), discs:getChecked('disc'), langs:getChecked('lang') };
 }
 
 function doFilter() {
@@ -278,14 +290,80 @@ function doFilter() {
   for (var i = 0; i < DATA.length; i++) {
     var x = DATA[i];
     if (f.level && x.l !== f.level) continue;
-    if (f.disc && x.d.indexOf(f.disc) < 0) continue;
-    if (f.uni && x.u !== f.uni) continue;
     if (f.type && x.t !== f.type) continue;
-    if (f.lang && x.g.indexOf(f.lang) < 0) continue;
+    if (f.region && x.reg !== f.region) continue;
+    if (f.discs.length > 0) {
+      var xd = splitTrim(x.d), found = false;
+      for (var di=0; di<f.discs.length; di++) { if (xd.indexOf(f.discs[di]) >= 0) { found=true; break; } }
+      if (!found) continue;
+    }
+    if (f.langs.length > 0) {
+      var xl = splitTrim(x.g), found = false;
+      for (var li=0; li<f.langs.length; li++) { if (xl.indexOf(f.langs[li]) >= 0) { found=true; break; } }
+      if (!found) continue;
+    }
     if (f.q && x.n.toLowerCase().indexOf(f.q) < 0 && x.u.toLowerCase().indexOf(f.q) < 0 && x.desc.toLowerCase().indexOf(f.q) < 0) continue;
     r.push(x);
   }
   return r;
+}
+
+// Multi-select helpers
+function fillMulti(containerId, opts, name) {
+  var container = $(containerId);
+  var html = '';
+  for (var i = 0; i < opts.length; i++) {
+    var label = DL[opts[i]] || opts[i];
+    html += '<label><input type="checkbox" name="'+name+'" value="'+opts[i]+'" onchange="onMultiChange(\''+name+'\')"> '+label+'</label>';
+  }
+  container.innerHTML = html;
+}
+
+function getChecked(name) {
+  var boxes = document.querySelectorAll('input[name="'+name+'"]:checked');
+  var vals = [];
+  for (var i=0; i<boxes.length; i++) vals.push(boxes[i].value);
+  return vals;
+}
+
+function onMultiChange(name) {
+  var vals = getChecked(name);
+  var labelId = name === 'disc' ? 'msDiscLabel' : 'msLangLabel';
+  if (vals.length === 0) {
+    $(labelId).textContent = 'All';
+  } else if (vals.length === 1) {
+    $(labelId).textContent = DL[vals[0]] || vals[0];
+  } else {
+    $(labelId).textContent = vals.length + ' selected';
+  }
+  render();
+}
+
+function toggleDrop(id) {
+  var drop = $(id).querySelector('.multi-dropdown');
+  var isOpen = drop.classList.contains('open');
+  // Close all
+  var all = document.querySelectorAll('.multi-dropdown');
+  for (var i=0;i<all.length;i++) all[i].classList.remove('open');
+  if (!isOpen) drop.classList.add('open');
+}
+
+// Close dropdowns on outside click
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.multi-select')) {
+    var all = document.querySelectorAll('.multi-dropdown');
+    for (var i=0;i<all.length;i++) all[i].classList.remove('open');
+  }
+});
+
+function clearAll() {
+  var ids = ['fLevel','fType','fRegion','search'];
+  for (var i=0;i<ids.length;i++) $(ids[i]).value='';
+  var boxes = document.querySelectorAll('input[type="checkbox"]');
+  for (var i=0;i<boxes.length;i++) boxes[i].checked = false;
+  $('msDiscLabel').textContent = 'All';
+  $('msLangLabel').textContent = 'All';
+  exp={}; render();
 }
 
 function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
@@ -293,7 +371,7 @@ function esc(s) { var d = document.createElement('div'); d.textContent = s; retu
 function render() {
   var r = doFilter(), f = getF();
   var ac = 0;
-  if (f.level) ac++; if (f.disc) ac++; if (f.uni) ac++; if (f.type) ac++; if (f.lang) ac++;
+  if (f.level) ac++; if (f.discs.length) ac++; if (f.type) ac++; if (f.langs.length) ac++; if (f.region) ac++;
   var fa = $('fActions');
   if (ac > 0) { fa.style.display='flex'; $('fCount').textContent=ac+' filter'+(ac>1?'s':'')+' active'; }
   else fa.style.display='none';
@@ -347,12 +425,6 @@ function render() {
 }
 
 function tog(i) { exp[i] = !exp[i]; render(); }
-
-function clearAll() {
-  var ids = ['fLevel','fDisc','fUni','fType','fLang','search'];
-  for (var i=0;i<ids.length;i++) $(ids[i]).value='';
-  exp={}; render();
-}
 
 var selects = document.querySelectorAll('.filter-select');
 for (var i=0;i<selects.length;i++) selects[i].addEventListener('change', render);
