@@ -123,17 +123,6 @@ body{font-family:'Montserrat',-apple-system,sans-serif;background:#f5f5f0;min-he
 </head>
 <body>
 
-<div class="header">
-  <div class="header-nav">
-    <img class="logo-img" src="https://static.wixstatic.com/media/e9061f_4ac00305344143a4a63c3c5f61bc17e7~mv2.png/v1/crop/x_49,y_125,w_362,h_223/fill/w_194,h_118,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/logo%20he-sustainability.png" alt="HE Sustainability">
-    <div class="nav-links">
-      <a href="https://www.he-sustainability.ch/">Home</a>
-      <a href="#" class="active">Study Guide</a>
-      <a href="https://www.he-sustainability.ch/about">About</a>
-    </div>
-  </div>
-</div>
-
 <div class="header-hero">
   <div class="header-hero-inner">
     <h1>Study Guide 2026</h1>
@@ -164,16 +153,20 @@ body{font-family:'Montserrat',-apple-system,sans-serif;background:#f5f5f0;min-he
     <div class="results-badges" id="rBadges"></div>
   </div>
   <div class="programs-list" id="list">
-    <div class="loading"><div class="spinner"></div><p>Loading programs...</p><p class="sub">Fetching data from Google Sheets</p></div>
+    <div class="loading"><div class="spinner"></div><p>Loading programs...</p><p class="sub">Fetching data from OneDrive</p></div>
   </div>
 </div>
 
-<div class="footer">
-  <p>&copy; WWF Switzerland 2026 &middot; <a href="https://www.he-sustainability.ch/">he-sustainability.ch</a> &middot; This is a prototype</p>
-</div>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-var SHEET_ID = "1jDphHwfUVrKaNgQGu3QDaWhAfyXuEIi4KbrY4g_HwOs";
+// ── OneDrive share link (change this to the real owner's link) ──
+var ONEDRIVE_SHARE = "https://1drv.ms/x/c/6c8a03026aaff695/IQBxORU20DhFTJ1vnmxpO4D_AcpfSmXMQXjQPiWLwdHucns";
+
+// Convert OneDrive share link to direct download URL
+function getOneDriveDirectUrl(shareUrl) {
+  var b64 = btoa(shareUrl).replace(/=+$/, '').replace(/\//g, '_').replace(/\+/g, '-');
+  return 'https://api.onedrive.com/v1.0/shares/u!' + b64 + '/root/content';
+}
 
 var DL = {Econ:"Economic Sciences",NatSci:"Natural & Environmental Sciences",SocSci:"Social Sciences",EngSci:"Engineering Sciences",ArtDes:"Arts & Design",ComSci:"Computer Science",EdProf:"Education & Pedagogy"};
 var LS = {
@@ -189,57 +182,46 @@ var exp = {};
 function $(id) { return document.getElementById(id); }
 
 function fetchData() {
-  var cb = 'handleGoogleData';
-  window[cb] = function(response) {
-    try {
-      if (!response.table || !response.table.rows) { showError('No table data'); return; }
+  var url = getOneDriveDirectUrl(ONEDRIVE_SHARE);
 
-      var cols = [];
-      for (var i = 0; i < response.table.cols.length; i++) {
-        cols.push((response.table.cols[i].label || '').toLowerCase().trim());
-      }
-      console.log('Columns:', cols);
+  fetch(url)
+    .then(function(resp) {
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return resp.arrayBuffer();
+    })
+    .then(function(buffer) {
+      var wb = XLSX.read(new Uint8Array(buffer), {type: 'array'});
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, {defval: ''});
 
-      var iP = -1, iU = -1, iT = -1, iL = -1, iD = -1, iG = -1, iDe = -1, iPr = -1, iR = -1;
-      for (var j = 0; j < cols.length; j++) {
-        if (cols[j].indexOf('program') >= 0) iP = j;
-        else if (cols[j].indexOf('university') >= 0 && cols[j].indexOf('type') >= 0) iT = j;
-        else if (cols[j].indexOf('university') >= 0) iU = j;
-        else if (cols[j].indexOf('level') >= 0) iL = j;
-        else if (cols[j].indexOf('discipline') >= 0 || cols[j].indexOf('main') >= 0) iD = j;
-        else if (cols[j].indexOf('language') >= 0 || cols[j].indexOf('lang') >= 0) iG = j;
-        else if (cols[j].indexOf('description') >= 0 || cols[j].indexOf('desc') >= 0) iDe = j;
-        else if (cols[j].indexOf('practical') >= 0 || cols[j].indexOf('info') >= 0) iPr = j;
-        else if (cols[j].indexOf('region') >= 0) iR = j;
-      }
-
-      if (iP === -1) { iP=0; iU=1; iT=2; iL=3; iD=4; iG=5; iDe=6; iPr=7; iR=8; }
+      console.log('Columns:', Object.keys(rows[0] || {}));
+      console.log('Total rows:', rows.length);
 
       DATA = [];
-      var rows = response.table.rows;
-      for (var k = 0; k < rows.length; k++) {
-        var r = rows[k];
-        var prog = gv(r, iP);
+      for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        var prog = String(r['Program'] || r['program'] || '').trim();
         if (!prog || prog === 'Program') continue;
-        DATA.push({n:prog, u:gv(r,iU), t:gv(r,iT), l:gv(r,iL), d:gv(r,iD), g:gv(r,iG), desc:gv(r,iDe), p:gv(r,iPr), reg:gv(r,iR)});
+        DATA.push({
+          n: prog,
+          u: String(r['University'] || r['university'] || '').trim(),
+          t: String(r['University Type'] || r['university type'] || '').trim(),
+          l: String(r['Level'] || r['level'] || '').trim(),
+          d: String(r['Discipline'] || r['discipline'] || '').trim(),
+          g: String(r['Language'] || r['language'] || '').trim(),
+          desc: String(r['Description'] || r['description'] || '').trim(),
+          p: String(r['Practical Information'] || r['practical information'] || '').trim(),
+          reg: String(r['Region'] || r['region'] || '').trim()
+        });
       }
 
       if (DATA.length === 0) { showError('No programs found. Check column headers.'); return; }
       populateFilters();
       render();
-    } catch(e) { showError(e.message); }
-  };
-
-  var s = document.createElement('script');
-  s.src = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=responseHandler:' + cb;
-  s.onerror = function() { showError('Could not load Google Sheets script.'); };
-  document.head.appendChild(s);
-}
-
-function gv(row, idx) {
-  if (idx < 0 || !row.c || !row.c[idx]) return '';
-  var v = row.c[idx].v;
-  return v ? String(v).trim() : '';
+    })
+    .catch(function(err) {
+      showError(err.message);
+    });
 }
 
 function showError(msg) {
