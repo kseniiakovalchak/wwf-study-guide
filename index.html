@@ -65,12 +65,10 @@
             font-weight: 500;
         }
 
-        #myExcelDiv {
-            width: 402px;
-            height: 346px;
+        .excel-card iframe {
             border: 1px solid #e0e0e0;
             border-radius: 6px;
-            overflow: hidden;
+            display: block;
         }
 
         .open-link {
@@ -100,14 +98,20 @@
 
     <header>
         <span class="icon">📊</span>
-        <h1>Просмотр Excel-файла</h1>
+        <h1>Viewing an Excel file</h1>
     </header>
 
     <div class="container">
         <div class="excel-card">
             <h2>Study Programs</h2>
 
-            <div id="myExcelDiv"></div>
+            <iframe
+                width="402"
+                height="346"
+                frameborder="0"
+                scrolling="no"
+                src="https://1drv.ms/x/c/6c8a03026aaff695/IQRxORU20DhFTJ1vnmxpO4D_AWUr6dLSuSWDEBUFfTh0r68?em=2&wdAllowInteractivity=False&ActiveCell='Study%20Programs'!A2&wdHideGridlines=True&wdHideHeaders=True&wdDownloadButton=True&wdInConfigurator=True">
+            </iframe>
 
             <a class="open-link"
                href="https://1drv.ms/x/c/6c8a03026aaff695/IQRxORU20DhFTJ1vnmxpO4D_AWUr6dLSuSWDEBUFfTh0r68"
@@ -118,16 +122,8 @@
     </div>
 
     <footer>
-        <p>Просмотр через Microsoft Office Excel Web App &nbsp;|&nbsp; &copy; 2026</p>
+        <p>View via Microsoft Office Excel Web App &nbsp;|&nbsp; &copy; 2026</p>
     </footer>
-
-    <!--
-        Microsoft Office Excel JavaScript API
-        Docs: https://msdn.microsoft.com/ru-RU/library/hh315812.aspx
-    -->
-    <script type="text/javascript"
-        src="https://1drv.ms/x/c/6c8a03026aaff695/IQRxORU20DhFTJ1vnmxpO4D_AWUr6dLSuSWDEBUFfTh0r68?em=3&wdDivId=%22myExcelDiv%22&wdDownloadButton=1&wdHideGridlines=1&wdHideHeaders=1&wdActiveCell=%22'Study%20Programs'!A2%22&wdAllowInteractivity=0">
-    </script>
 
 </body>
 </html>
