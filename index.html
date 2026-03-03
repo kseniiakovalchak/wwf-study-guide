@@ -176,11 +176,14 @@ body{font-family:'Montserrat',-apple-system,sans-serif;background:#f5f5f0;min-he
       <div class="filter-group"><label class="filter-label">University Type</label><select id="fType" class="filter-select"><option value="">All</option></select></div>
       <div class="filter-group"><label class="filter-label">Region</label><select id="fRegion" class="filter-select"><option value="">All</option></select></div>
       <div class="filter-group">
-        <label class="filter-label">Language</label>
+        <label class="filter-label">Main Language</label>
         <select id="fMainLang" class="filter-select"><option value="">All</option></select>
         <div class="lang-sub" id="langSubWrap">
-          <label class="filter-label">Also taught in</label>
-          <select id="fAddLang" class="filter-select"><option value="">Any</option></select>
+          <label class="filter-label">Additional Languages</label>
+          <div class="multi-select" id="msAddLang">
+            <button type="button" class="multi-btn" onclick="toggleDrop('msAddLang')"><span id="msAddLangLabel">Any</span><span class="arrow">&#9660;</span></button>
+            <div class="multi-dropdown" id="msAddLangDrop"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -226,6 +229,8 @@ function $(id){return document.getElementById(id)}
 
 // Normalize old language formats to full names
 var LANG_NORM = {'D':'German','E':'English','F':'French','DE':'German','EN':'English','FR':'French','IT':'Italian','German':'German','English':'English','French':'French','Italian':'Italian'};
+var VALID_LANGS = ['German','English','French','Italian'];
+function isValidLang(s){if(!s)return false;if(s.indexOf('http')>=0||s.indexOf('/')>=0||s.indexOf('.')>=0)return false;for(var i=0;i<VALID_LANGS.length;i++){if(s.trim()===VALID_LANGS[i])return true;}return false;}
 
 function parseOldLang(raw) {
   if (!raw) return {main:'',add:''};
@@ -306,10 +311,22 @@ function fetchData() {
         // Normalize single codes to full names
         if (LANG_NORM[mainLang]) mainLang = LANG_NORM[mainLang];
 
+        // Filter addLang: remove URLs and non-language values
+        if (addLang) {
+          var cleanAdds = [];
+          var rawAdds = addLang.split(',');
+          for (var ai=0;ai<rawAdds.length;ai++) {
+            var al = rawAdds[ai].trim();
+            if (LANG_NORM[al]) al = LANG_NORM[al];
+            if (isValidLang(al)) cleanAdds.push(al);
+          }
+          addLang = cleanAdds.join(', ');
+        }
+
         // All languages list
         var allLangs = [];
-        if (mainLang) allLangs.push(mainLang);
-        if (addLang) { var extras=addLang.split(','); for(var ei=0;ei<extras.length;ei++){var el=extras[ei].trim();if(el&&allLangs.indexOf(el)<0)allLangs.push(el);} }
+        if (mainLang && isValidLang(mainLang)) allLangs.push(mainLang);
+        if (addLang) { var extras=addLang.split(','); for(var ei=0;ei<extras.length;ei++){var el=extras[ei].trim();if(el&&isValidLang(el)&&allLangs.indexOf(el)<0)allLangs.push(el);} }
 
         DATA.push({
           n:prog, u:gv(r,CM.uni), t:gv(r,CM.utype), l:gv(r,CM.level), d:gv(r,CM.disc),
@@ -353,7 +370,7 @@ function populateFilters() {
   fillMulti('msDiscDrop',uniq(discs),'disc');
 }
 
-// When main language changes, show "Also taught in" sub-filter
+// When main language changes, show "Additional Languages" multi-select
 $('fMainLang').addEventListener('change', function() {
   var wrap=$('langSubWrap'), val=this.value;
   if (val) {
@@ -361,18 +378,18 @@ $('fMainLang').addEventListener('change', function() {
     for (var i=0;i<DATA.length;i++) {
       if (DATA[i].mainLang===val && DATA[i].addLang) {
         var al=splitTrim(DATA[i].addLang);
-        for (var j=0;j<al.length;j++) adds.push(al[j]);
+        for (var j=0;j<al.length;j++) if(isValidLang(al[j])) adds.push(al[j]);
       }
     }
     var unique=uniq(adds);
-    if (unique.length>0) { fill('fAddLang',unique); wrap.classList.add('visible'); }
-    else { wrap.classList.remove('visible'); $('fAddLang').value=''; }
-  } else { wrap.classList.remove('visible'); $('fAddLang').value=''; }
+    if (unique.length>0) { fillMulti('msAddLangDrop',unique,'addLang'); wrap.classList.add('visible'); $('msAddLangLabel').textContent='Any'; }
+    else { wrap.classList.remove('visible'); uncheckAll('addLang'); }
+  } else { wrap.classList.remove('visible'); uncheckAll('addLang'); }
   render();
 });
 
 function getF() {
-  return {level:$('fLevel').value,type:$('fType').value,region:$('fRegion').value,q:$('search').value.toLowerCase(),discs:getChecked('disc'),mainLang:$('fMainLang').value,addLang:$('fAddLang').value};
+  return {level:$('fLevel').value,type:$('fType').value,region:$('fRegion').value,q:$('search').value.toLowerCase(),discs:getChecked('disc'),mainLang:$('fMainLang').value,addLangs:getChecked('addLang')};
 }
 
 function doFilter() {
@@ -388,7 +405,7 @@ function doFilter() {
       if(!found) continue;
     }
     if (f.mainLang && x.mainLang!==f.mainLang) continue;
-    if (f.addLang) { var al=splitTrim(x.addLang); if(al.indexOf(f.addLang)<0) continue; }
+    if (f.addLangs.length>0) { var al=splitTrim(x.addLang); var afound=false; for(var ali=0;ali<f.addLangs.length;ali++){if(al.indexOf(f.addLangs[ali])>=0){afound=true;break;}} if(!afound) continue; }
     if (f.q && x.n.toLowerCase().indexOf(f.q)<0 && x.u.toLowerCase().indexOf(f.q)<0 && x.desc.toLowerCase().indexOf(f.q)<0) continue;
     r.push(x);
   }
@@ -397,16 +414,18 @@ function doFilter() {
 
 function fillMulti(cid,opts,name){var c=$(cid),h='';for(var i=0;i<opts.length;i++){var lb=DL[opts[i]]||opts[i];h+='<label><input type="checkbox" name="'+name+'" value="'+opts[i]+'" onchange="onMultiChange(\''+name+'\')"> '+lb+'</label>';}c.innerHTML=h;}
 function getChecked(name){var b=document.querySelectorAll('input[name="'+name+'"]:checked'),v=[];for(var i=0;i<b.length;i++)v.push(b[i].value);return v;}
-function onMultiChange(name){var v=getChecked(name),lid='msDiscLabel';if(!v.length)$(lid).textContent='All';else if(v.length===1)$(lid).textContent=DL[v[0]]||v[0];else $(lid).textContent=v.length+' selected';render();}
+function uncheckAll(name){var b=document.querySelectorAll('input[name="'+name+'"]');for(var i=0;i<b.length;i++)b[i].checked=false;}
+function onMultiChange(name){var v=getChecked(name),lid=(name==='disc')?'msDiscLabel':'msAddLangLabel';if(!v.length)$(lid).textContent=(name==='disc')?'All':'Any';else if(v.length===1)$(lid).textContent=DL[v[0]]||v[0];else $(lid).textContent=v.length+' selected';render();}
 function toggleDrop(id){var d=$(id).querySelector('.multi-dropdown'),o=d.classList.contains('open');var all=document.querySelectorAll('.multi-dropdown');for(var i=0;i<all.length;i++)all[i].classList.remove('open');if(!o)d.classList.add('open');}
 document.addEventListener('click',function(e){if(!e.target.closest('.multi-select')){var all=document.querySelectorAll('.multi-dropdown');for(var i=0;i<all.length;i++)all[i].classList.remove('open');}});
 
 function clearAll(){
-  var ids=['fLevel','fType','fRegion','fMainLang','fAddLang','search'];
+  var ids=['fLevel','fType','fRegion','fMainLang','search'];
   for(var i=0;i<ids.length;i++)$(ids[i]).value='';
   var boxes=document.querySelectorAll('input[type="checkbox"]');
   for(var i=0;i<boxes.length;i++)boxes[i].checked=false;
   $('msDiscLabel').textContent='All';
+  $('msAddLangLabel').textContent='Any';
   $('langSubWrap').classList.remove('visible');
   exp={};render();
 }
@@ -428,7 +447,7 @@ function buildItIcons(x) {
 function render() {
   var r=doFilter(),f=getF();
   var ac=0;
-  if(f.level)ac++;if(f.discs.length)ac++;if(f.type)ac++;if(f.mainLang)ac++;if(f.addLang)ac++;if(f.region)ac++;
+  if(f.level)ac++;if(f.discs.length)ac++;if(f.type)ac++;if(f.mainLang)ac++;if(f.addLangs.length)ac++;if(f.region)ac++;
   var fa=$('fActions');
   if(ac>0){fa.style.display='flex';$('fCount').textContent=ac+' filter'+(ac>1?'s':'')+' active';}
   else fa.style.display='none';
